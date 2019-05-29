@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	"github.com/mitchellh/goamz/aws"
-
 	"github.com/ulule/gostorages"
+
+	"github.com/thoas/picfit/logger"
 )
 
 const (
@@ -19,34 +20,43 @@ const (
 )
 
 // New return destination and source storages from config
-func New(cfg *Config) (gostorages.Storage, gostorages.Storage, error) {
+func New(log logger.Logger, cfg *Config) (gostorages.Storage, gostorages.Storage, error) {
 	if cfg == nil {
 		storage := &DummyStorage{}
 
 		return storage, storage, nil
 	}
 
-	var sourceStorage gostorages.Storage
-	var destinationStorage gostorages.Storage
-	var err error
+	var (
+		sourceStorage      gostorages.Storage
+		destinationStorage gostorages.Storage
+		err                error
+	)
 
 	if cfg.Source != nil {
 		sourceStorage, err = newStorage(cfg.Source)
-
 		if err != nil {
 			return nil, nil, err
 		}
+
+		log.Debug("Source storage configured",
+			logger.String("type", cfg.Source.Type))
 	}
 
 	if cfg.Destination == nil {
+		log.Debug("Destination storage not set, source storage will be used",
+			logger.String("type", cfg.Source.Type))
+
 		return sourceStorage, sourceStorage, nil
 	}
 
 	destinationStorage, err = newStorage(cfg.Destination)
-
 	if err != nil {
 		return nil, nil, err
 	}
+
+	log.Debug("Destination storage configured",
+		logger.String("type", cfg.Destination.Type))
 
 	return sourceStorage, destinationStorage, nil
 }
@@ -65,7 +75,6 @@ func newStorage(cfg *StorageConfig) (gostorages.Storage, error) {
 		cfg.Type = s3StorageType
 
 		storage, err := newStorage(cfg)
-
 		if err != nil {
 			return nil, err
 		}
@@ -73,13 +82,11 @@ func newStorage(cfg *StorageConfig) (gostorages.Storage, error) {
 		return &HTTPStorage{storage, ""}, nil
 	case s3StorageType:
 		acl, ok := gostorages.ACLs[cfg.ACL]
-
 		if !ok {
 			return nil, fmt.Errorf("The ACL %s does not exist", cfg.ACL)
 		}
 
 		region, ok := aws.Regions[cfg.Region]
-
 		if !ok {
 			return nil, fmt.Errorf("The Region %s does not exist", cfg.Region)
 		}
@@ -106,7 +113,6 @@ func newStorage(cfg *StorageConfig) (gostorages.Storage, error) {
 		cfg.Type = fsStorageType
 
 		storage, err := newStorage(cfg)
-
 		if err != nil {
 			return nil, err
 		}

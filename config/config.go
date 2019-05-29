@@ -8,9 +8,9 @@ import (
 
 	"github.com/thoas/picfit/constants"
 	engineconfig "github.com/thoas/picfit/engine/config"
-	"github.com/thoas/picfit/kvstore"
 	"github.com/thoas/picfit/logger"
 	"github.com/thoas/picfit/storage"
+	"github.com/thoas/picfit/store"
 )
 
 // Shard is a struct to allow shard location when files are uploaded
@@ -28,14 +28,16 @@ type AllowedSize struct {
 
 // Options is a struct to add options to the application
 type Options struct {
-	EnablePprof      bool          `mapstructure:"enable_pprof"`
-	EnableUpload     bool          `mapstructure:"enable_upload"`
-	EnableDelete     bool          `mapstructure:"enable_delete"`
-	EnableStats      bool          `mapstructure:"enable_stats"`
-	EnableHealth     bool          `mapstructure:"enable_health"`
-	AllowedSizes     []AllowedSize `mapstructure:"allowed_sizes"`
-	DefaultUserAgent string        `mapstructure:"default_user_agent"`
-	MimetypeDetector string        `mapstructure:"mimetype_detector"`
+	AllowedIPAddresses  []string      `mapstructure:"allowed_ip_addresses"`
+	EnablePprof         bool          `mapstructure:"enable_pprof"`
+	EnableUpload        bool          `mapstructure:"enable_upload"`
+	EnableDelete        bool          `mapstructure:"enable_delete"`
+	EnableCascadeDelete bool          `mapstructure:"enable_cascade_delete"`
+	EnableStats         bool          `mapstructure:"enable_stats"`
+	EnableHealth        bool          `mapstructure:"enable_health"`
+	AllowedSizes        []AllowedSize `mapstructure:"allowed_sizes"`
+	DefaultUserAgent    string        `mapstructure:"default_user_agent"`
+	MimetypeDetector    string        `mapstructure:"mimetype_detector"`
 }
 
 // Sentry is a struct to configure sentry using a dsn
@@ -57,7 +59,7 @@ type Config struct {
 	AllowedMethods []string `mapstructure:"allowed_methods"`
 	AllowedHeaders []string `mapstructure:"allowed_headers"`
 	Storage        *storage.Config
-	KVStore        *kvstore.Config
+	KVStore        *store.Config
 	Logger         logger.Config
 }
 
@@ -81,7 +83,7 @@ func DefaultConfig() *Config {
 			MimetypeDetector: DefaultMimetypeDetector,
 		},
 		Port: DefaultPort,
-		KVStore: &kvstore.Config{
+		KVStore: &store.Config{
 			Type: "dummy",
 		},
 		Shard: &Shard{

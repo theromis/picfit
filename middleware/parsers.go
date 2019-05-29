@@ -9,13 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/thoas/picfit/constants"
 	"github.com/thoas/picfit/engine"
 	"github.com/thoas/picfit/hash"
 	"github.com/thoas/picfit/image"
 	"github.com/thoas/picfit/util"
 )
-
-const sigParamName = "sig"
 
 var parametersReg = regexp.MustCompile(`(?:(?P<sig>\w+)/)?(?P<op>\w+)/(?:(?P<w>\d+))?x(?:(?P<h>\d+))?/(?P<path>[\w\-/.]+)`)
 
@@ -26,16 +25,19 @@ func ParametersParser() gin.HandlerFunc {
 
 		if result != "" {
 			match := parametersReg.FindStringSubmatch(result)
+			if match != nil {
+				parameters := make(map[string]interface{})
 
-			parameters := make(map[string]interface{})
+				results := parametersReg.SubexpNames()
 
-			for i, name := range parametersReg.SubexpNames() {
-				if i != 0 && match[i] != "" {
-					parameters[name] = match[i]
+				for i, name := range results {
+					if i != 0 && match[i] != "" {
+						parameters[name] = match[i]
+					}
 				}
-			}
 
-			c.Set("parameters", parameters)
+				c.Set("parameters", parameters)
+			}
 		} else {
 			if c.Query("url") == "" && c.Query("path") == "" {
 				c.String(http.StatusBadRequest, "Request should contains parameters or query string")
@@ -59,14 +61,17 @@ func KeyParser() gin.HandlerFunc {
 		}
 
 		sorted := setParamsFromURLValues(queryString, c.Request.URL.Query())
-		delete(sorted, sigParamName)
+		delete(sorted, constants.SigParamName)
+		delete(sorted, constants.ForceParamName)
 
-		serialized := hash.Serialize(sorted)
+		if len(sorted) != 0 {
+			serialized := hash.Serialize(sorted)
 
-		key := hash.Tokey(serialized)
+			key := hash.Tokey(serialized)
 
-		c.Set("key", key)
-		c.Set("parameters", queryString)
+			c.Set("key", key)
+			c.Set("parameters", queryString)
+		}
 
 		c.Next()
 	}
@@ -74,7 +79,7 @@ func KeyParser() gin.HandlerFunc {
 
 func setParamsFromURLValues(params map[string]interface{}, values url.Values) map[string]interface{} {
 	for k, v := range values {
-		if k != "op" {
+		if k != constants.OperationParamName {
 			params[k] = v[0]
 			continue
 		}
@@ -135,21 +140,21 @@ func OperationParser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		parameters := c.MustGet("parameters").(map[string]interface{})
 
-		operation, ok := parameters["op"].(string)
+		operation, ok := parameters[constants.OperationParamName].(string)
 		if ok && operation != "" {
 			if _, k := engine.Operations[operation]; !k {
 				c.String(http.StatusBadRequest, fmt.Sprintf("Invalid method %s or invalid parameters", operation))
 				c.Abort()
 				return
 			}
-			c.Set("op", operation)
+			c.Set(constants.OperationParamName, operation)
 			c.Next()
 			return
 		}
 
-		operations, ok := parameters["op"].([]string)
+		operations, ok := parameters[constants.OperationParamName].([]string)
 		if !ok || len(operations) == 0 {
-			c.String(http.StatusBadRequest, "`op` parameter or query string cannot be empty")
+			c.String(http.StatusBadRequest, fmt.Sprintf("`%s` parameter or query string cannot be empty", constants.OperationParamName))
 			c.Abort()
 			return
 		}
@@ -165,9 +170,9 @@ func OperationParser() gin.HandlerFunc {
 					}
 				}
 
-				v, exists := params["op"]
+				v, exists := params[constants.OperationParamName]
 				if !exists {
-					c.String(http.StatusBadRequest, "`op` parameter or query string cannot be empty")
+					c.String(http.StatusBadRequest, fmt.Sprintf("`%s` parameter or query string cannot be empty", constants.OperationParamName))
 					c.Abort()
 					return
 				} else if _, ok := engine.Operations[v]; !ok {
